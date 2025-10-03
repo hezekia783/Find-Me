@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jeu - Réclame ton cadeau</title>
+  <style>
+    :root{--bg:#39525b;--card:#1b1b3e;--accent:#f59e0b;--muted:#94a3b8;--white:#f8fafc}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial;background:linear-gradient(180deg,#021026 0%, #071428 100%);color:var(--white);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+    .card{width:100%;max-width:760px;background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.02));border-radius:16px;padding:28px;box-shadow:0 10px 30px rgba(2,6,23,0.6)}
+    h1{margin:0 0 8px;font-size:20px}
+    p.lead{margin:0 0 20px;color:var(--muted)}
+    .question{background:rgba(27, 82, 91, 0.094);padding:18px;border-radius:12px;margin-bottom:16px}
+    .q-text{font-weight:600;margin-bottom:12px}
+    .choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    button.choice{background:transparent;border:1px solid rgba(53, 86, 127, 0.06);padding:10px;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;color: rgb(255, 255, 255);}
+    button.choice:hover{transform:translateY(-2px);background-color: rgb(125, 100, 59);}
+    .controls{display:flex;gap:10px;margin-top:12px;background-color: azure;}
+    .btn{background:var(--accent);border:none;color:#455670;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--white)}
+    .progress{height:6px;background:rgba(255,255,255,0.04);border-radius:8px;overflow:hidden;margin-bottom:16px}
+    .progress > i{display:block;height:100%;background-color: aquamarine;}
+    .hidden{display:none}
+    .final{padding:18px;border-radius:12px;background:linear-gradient(180deg,rgba(245,158,11,0.06),rgba(239,68,68,0.02));color:var(--bg)}
+    .note{font-size:13px;color:var(--muted);margin-top:10px}
+    @media (max-width:640px){.choices{grid-template-columns:1fr}
+    .card{padding:18px}}
+
+    /* 🔔 Notification style */
+    #notif {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #8c4b1c;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      z-index: 9999;
+    }
+    #notif.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="app">
+    <h1>Quiz - Gagne ton cadeau</h1>
+    <p class="lead">Réponds correctement à toutes les questions pour réclamer ton cadeau au restaurant. Le gagnant pourra récupérer son lot immédiatement.</p>
+
+    <div class="progress" aria-hidden><i id="bar"></i></div>
+
+    <div id="quiz"></div>
+
+    <div id="footer" class="hidden">
+      <div class="final" id="finalCard">
+        <h2 id="finalTitle">Félicitations !</h2>
+        <p id="finalMsg">Tu as répondu correctement à toutes les questions. Clique sur "Réclamer" pour obtenir ton cadeau.</p>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn" id="claimBtn">Réclamer</button>
+          <button class="btn secondary" id="shareBtn">Partager (optionnel)</button>
+        </div>
+        <p class="note">Remarque : l'adresse est confidentielle et ne s'affichera qu'après réclamation.</p>
+      </div>
+
+      <div id="addressCard" class="hidden" style="margin-top:12px;">
+        <div class="final">
+          <h2>Ton cadeau t'attend ici :</h2>
+          <p id="addressText" style="font-weight:800;font-size:16px;color:var(--bg);background:white;padding:10px;border-radius:8px;display:inline-block"></p>
+          <p class="note">Va à cette adresse Schleissheimer Str. 182 80797 Munich</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="result" class="hidden" style="margin-top:12px;color:var(--muted)"></div>
+  </div>
+
+  <!-- 🔔 Zone de notification -->
+  <div id="notif" class="hidden">Mauvaise réponse 😅</div>
+
+  <script>
+    const RESTAURANT_ADDRESS = "Schleissheimer Str. 182 80797 Munich";
+    const RESTAURANT_NAME = "Le Jardin Secret";
+
+    // Questions
+    const QUESTIONS = [
+      { q: "Quel ton hobby préféré ?", choices: ["chanter","danser","dormir","balader"], correct: 0 },
+      { q: "Parmis ces qautres menus que choisiras ton amant ?", choices: ["Mine-sao","Pizza","nem & salade","Sushi"], correct: 2 },
+      { q: "Quel est le chiffre commun de vos pointures de chaussure ?", choices: ["1","3","9","100"], correct: 1 },
+      { q: "Quelle est la qualité que tu admires le plus chez ton copain ?", choices: ["sportif","sérieux","sa Foi","courure de jupon"], correct: 2 },
+      { q: "Quel est la taille de l'annulaire gauche de ton partenaire ?", choices: ["10","61","62","69"], correct: 2 },
+      { q: "Comment te projettes tu dans 10 ans ?", choices: ["Famille","Stabilité","Tours du Monde","Autres"], correct: 0 },
+      { q: "Combien d'enfants souhaitez-vous avoir ?", choices: ["0","1","2","3"], correct: 2 },
+      { q: "Sur une échelle de 1 à 10, à quel point fais tu confiance à ton Amant ?", choices: ["0/10","5/10","9/10","10/10"], correct: 2 },
+      { q: "Si tu lui fais confiance à ce point va à cette adresse tout de suite pour recevoir ton cadeau?(Règles du jeu: il est interdi de l'appelé)", choices: ["","-","-","-"], correct: 0 }
+    ];
+
+    // Notifications personnalisées
+    const NOTIFS = [
+      "Oups, ton hobby préféré n’est pas celui-là 😉",
+      "Hmm… pas le bon plat, essaie encore 🍕",
+      "Aïe, ce n’est pas le bon chiffre 👣",
+      "Presque, mais ce n’est pas cette qualité 💡",
+      "Pas la bonne taille d’annulaire 💍",
+      "Essaie une autre projection pour dans 10 ans 🌍",
+      "Ce n’est pas le bon nombre d’enfants 👶",
+      "La confiance, c’est un peu plus haut 😇",
+      "Tu dois trouver la bonne clé pour ton cadeau 🎁"
+    ];
+
+    const quizEl = document.getElementById('quiz');
+    const footer = document.getElementById('footer');
+    const bar = document.getElementById('bar');
+    const claimBtn = document.getElementById('claimBtn');
+    const addressCard = document.getElementById('addressCard');
+    const addressText = document.getElementById('addressText');
+    const finalTitle = document.getElementById('finalTitle');
+    const finalMsg = document.getElementById('finalMsg');
+
+    let answers = new Array(QUESTIONS.length).fill(null);
+
+    function shuffleArray(arr){
+      const a = arr.map((v,i)=>({v,i}));
+      for(let i=a.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+      }
+      return a.map(x=>x.v);
+    }
+
+    function showNotif(msg){
+      const n = document.getElementById('notif');
+      n.textContent = msg;
+      n.classList.add('show');
+      n.classList.remove('hidden');
+      setTimeout(()=>n.classList.remove('show'), 2000);
+    }
+
+    function render(){
+      quizEl.innerHTML='';
+      QUESTIONS.forEach((item, idx)=>{
+        const qWrap = document.createElement('div');
+        qWrap.className='question';
+        const qText = document.createElement('div');
+        qText.className='q-text';
+        qText.textContent = `Question ${idx+1} — ${item.q}`;
+        qWrap.appendChild(qText);
+
+        const choicesWrap = document.createElement('div');
+        choicesWrap.className='choices';
+
+        const choicesWithIndex = item.choices.map((c,i)=>({c,i}));
+        const shuffled = shuffleArray(choicesWithIndex);
+
+        shuffled.forEach(choiceObj => {
+          const btn = document.createElement('button');
+          btn.className='choice';
+          btn.textContent = choiceObj.c;
+          btn.addEventListener('click',()=>{
+            answers[idx] = choiceObj.i;
+
+            // 🔔 Affiche notif spécifique si mauvaise réponse
+            if (answers[idx] !== item.correct) {
+              showNotif(NOTIFS[idx]);
+            }
+
+            Array.from(choicesWrap.querySelectorAll('button.choice')).forEach(b=>b.style.opacity=0.6);
+            btn.style.opacity=1;
+            updateProgress();
+          });
+          choicesWrap.appendChild(btn);
+        });
+
+        qWrap.appendChild(choicesWrap);
+        quizEl.appendChild(qWrap);
+      });
+
+      updateProgress();
+    }
+
+    function updateProgress(){
+      const done = answers.filter(a=>a!==null).length;
+      const pct = Math.round((done/QUESTIONS.length)*100);
+      bar.style.width = pct + '%';
+
+      if(done === QUESTIONS.length){
+        finalTitle.textContent='Vérification en cours...';
+        finalMsg.textContent='Nous vérifions tes réponses. Si tout est correct, tu pourras réclamer ton cadeau.';
+        footer.classList.remove('hidden');
+        setTimeout(checkAnswers, 800);
+      } else {
+        footer.classList.add('hidden');
+      }
+    }
+
+    function checkAnswers(){
+      let correctCount = 0;
+      for(let i=0;i<QUESTIONS.length;i++){
+        if(answers[i] === QUESTIONS[i].correct) correctCount++;
+      }
+
+      if(correctCount === QUESTIONS.length){
+        finalTitle.textContent = 'Félicitations !';
+        finalMsg.textContent = `Tu as répondu correctement à ${correctCount}/${QUESTIONS.length} questions. Tu peux réclamer ton cadeau.`;
+        claimBtn.disabled = false;
+        claimBtn.style.opacity = 1;
+      } else {
+        finalTitle.textContent = 'Presque !';
+        finalMsg.textContent = `Tu as ${correctCount}/${QUESTIONS.length} bonnes réponses. Retente ta chance ou réessaie.`;
+        claimBtn.disabled = true;
+        claimBtn.style.opacity = 0.5;
+      }
+    }
+
+    claimBtn.addEventListener('click',()=>{
+      addressText.textContent = RESTAURANT_ADDRESS;
+      addressCard.classList.remove('hidden');
+      finalTitle.textContent = 'Cadeau réclamé !';
+      finalMsg.textContent = `Ton bon est prêt au ${RESTAURANT_NAME}. Montre ce message au personnel.`;
+    });
+
+    document.getElementById('shareBtn').addEventListener('click',()=>{
+      const text = `J'ai gagné un cadeau au ${RESTAURANT_NAME} !`; 
+      if(navigator.share){
+        navigator.share({title:'Cadeau',text, url: window.location.href}).catch(()=>{});
+      } else {
+        navigator.clipboard.writeText(text + ' ' + window.location.href).then(()=>{
+          alert('Message copié — partage-le !');
+        }).catch(()=>{
+          alert('Impossible de partager depuis ton navigateur.');
+        });
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
